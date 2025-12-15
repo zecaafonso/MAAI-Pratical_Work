@@ -1,0 +1,16 @@
+dteday
+yr
+mnth
+holiday
+weekday
+workingday
+temp
+hum
+windspeed
+is_weekend
+cnt_lag_7
+season_2
+season_3
+season_4
+weathersit_2
+weathersit_3
