@@ -77,11 +77,14 @@ print(f"valores nulos preenchidos com moda")
 # verificar nulos apos novas features
 print(f"Total de valores nulos depois da limpeza: {df_copy.isnull().sum().sum()}")
 
+
 # Remover colunas redundantes/desnecessárias
 cols_to_drop = ['id',#nao vai ser necessario para a previsao 
                 'City',# para ser menos limitante mais generalizado 
                 'Profession',# para ser menos limitante mais generalizado 
-                'Degree'# para ser menos limitante mais generalizado 
+                'Degree',# para ser menos limitante mais generalizado 
+                'Work Pressure',
+                'Job Satisfaction'
                 ]
 df_copy = df_copy.drop(columns=[c for c in cols_to_drop if c in df_copy.columns])
 print(f"\nColunas removidas: {cols_to_drop}")
@@ -423,3 +426,46 @@ for i, (bar, importance) in enumerate(zip(bars, top_features['Importância'])):
 plt.tight_layout()
 plt.savefig('importancia_variaveis.png', dpi=300, bbox_inches='tight')
 plt.show()
+
+print("\n" + "="*60)
+print("RESUMO FINAL E CONCLUSÕES")
+print("="*60)
+
+# Calcular métricas finais
+acuracia = accuracy_score(y_test, y_test_pred)
+precisao = precision_score(y_test, y_test_pred)
+recall = recall_score(y_test, y_test_pred)
+f1 = f1_score(y_test, y_test_pred)
+auc_score = roc_auc_score(y_test, y_test_proba)
+
+print(f"""
+ RESULTADO DO MODELO DE PREVISÃO DE DEPRESSÃO
+
+ DADOS UTILIZADOS:
+   - Total de estudantes: {df.shape[0]}
+   - Com depressão: {sum(y == 1)} ({sum(y == 1)/len(y):.1%})
+   - Sem depressão: {sum(y == 0)} ({sum(y == 0)/len(y):.1%})
+   - Variáveis preditoras: {X.shape[1]}
+
+ MODELO RANDOM FOREST:
+   - Número de árvores: {rf_model.n_estimators}
+   - Variáveis por split: {rf_model.max_features}
+   - Balanceamento: {'Sim' if rf_model.class_weight else 'Não'}
+
+ DESEMPENHO NO TESTE:
+   - Acurácia:  {acuracia:.2%}
+   - Precisão:  {precisao:.2%} (dos previstos como depressão, quantos realmente têm)
+   - Recall:    {recall:.2%} (dos que têm depressão, quantos foram identificados)
+   - F1-Score:  {f1:.2%} (média harmônica entre precisão e recall)
+   - AUC-ROC:   {auc_score:.2%} (capacidade de discriminar entre classes)
+
+ FATORES MAIS IMPORTANTES:
+   1. {feature_importance.iloc[0]['Variável']} ({feature_importance.iloc[0]['Importância']:.3%})
+   2. {feature_importance.iloc[1]['Variável']} ({feature_importance.iloc[1]['Importância']:.3%})
+   3. {feature_importance.iloc[2]['Variável']} ({feature_importance.iloc[2]['Importância']:.3%})
+
+ IMPLICAÇÕES PRÁTICAS:
+   - O modelo pode identificar {recall:.1%} dos estudantes com depressão
+   - {precisao:.1%} das previsões positivas são corretas
+   - Focando nos fatores mais importantes, podemos criar programas preventivos
+""")
