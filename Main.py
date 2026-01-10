@@ -2,12 +2,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
+import os
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score,f1_score, roc_auc_score, confusion_matrix,classification_report, roc_curve
-
+from sklearn.model_selection import RandomizedSearchCV,GridSearchCV
 
 
 #Carregar dados
@@ -17,7 +19,9 @@ df=pd.read_csv("student_depression_dataset.csv")
 print("DATASET ORGINAL")
 print(f"Dimensoes: {df.shape}")
 print(f"Colunas: {df.columns.tolist()}")
-   
+# Primeiras linhas do dataset
+  
+
 #features disponiveis no dataset
 features =['id', 'Gender', 'Age', 'City', 'Profession', 'Academic Pressure', 'Work Pressure', 'CGPA', 'Study Satisfaction',
             'Job Satisfaction', 'Sleep Duration', 'Dietary Habits', 'Degree', 'Have you ever had suicidal thoughts ?', 'Work/Study Hours',
@@ -30,7 +34,7 @@ tipos_dados = pd.DataFrame({
     'Coluna': df.columns,
     'Tipo': df.dtypes.values,
     'Valores Únicos': [df[col].nunique() for col in df.columns]
-}) 
+})
 print(df.describe())
 
 #valores nulos e duplicados
@@ -39,15 +43,7 @@ print(f"Valores nulos:\n{df.isnull().sum()}")
 print(f"\nLinhas duplicadas: {df.duplicated().sum()}")
 print(f"Total de linhas no dataset: {df.shape[0]}") 
   
-# 3.4. Análise da variável alvo (cnt)
-print("\nANÁLISE DA VARIÁVEL ALVO (Depression):")
-print(f"Média: {df['Depression'].mean():.1f} aluguéis/dia")
-print(f"Desvio padrão: {df['Depression'].std():.1f}")
-print(f"Mínimo: {df['Depression'].min()}")
-print(f"Máximo: {df['Depression'].max()}")
-print(f"Mediana: {df['Depression'].median()}")
-
-
+  
 corr_cols = ['Age','Academic Pressure', 'Work Pressure', 'CGPA', 'Study Satisfaction',
             'Job Satisfaction','Work/Study Hours', 'Depression']
 corr_matrix = df[corr_cols].corr()
@@ -64,34 +60,34 @@ print(f"Total de linhas no dataset: {df.shape[0]}")
 
 #features numericas
 numericas =df_copy.select_dtypes(include=[np.number]).columns.tolist()
-
 print(f"\nfeatures numericas:{numericas}")
+#valores nulos preenchidos com mediana
 df_copy[numericas] = df_copy[numericas].fillna(df_copy[numericas].median())
 print(f"valores nulos preenchidos com mediana")
+
 #features categoricas
 categoricas=df_copy.select_dtypes(include=['object']).columns.tolist()
 print(f"\nfeatures categoricas:{categoricas}")
+#valores nulos preenchidos com moda
 df_copy[categoricas] = df_copy[categoricas].fillna(df_copy[categoricas].mode().iloc[0])
 print(f"valores nulos preenchidos com moda")
 
-# verificar nulos apos novas features
+# verificar nulos apos limpeza
 print(f"Total de valores nulos depois da limpeza: {df_copy.isnull().sum().sum()}")
-
 
 # Remover colunas redundantes/desnecessárias
 cols_to_drop = ['id',#nao vai ser necessario para a previsao 
                 'City',# para ser menos limitante mais generalizado 
                 'Profession',# para ser menos limitante mais generalizado 
-                'Degree',# para ser menos limitante mais generalizado 
-                'Work Pressure',
-                'Job Satisfaction'
+                'Degree',# importancia muito baixa
+                'Work Pressure',# importancia muito baixa
+                'Job Satisfaction'# importancia muito baixa
                 ]
 df_copy = df_copy.drop(columns=[c for c in cols_to_drop if c in df_copy.columns])
 print(f"\nColunas removidas: {cols_to_drop}")
 print(f"Features finais: {list(df_copy.columns)}")
 
-
-print(f"\nPrimeiras 5 linhas do dataset:")  
+#Features finais e dimensoes
 print(f"\nDataset após pré-processamento: {df_copy.shape}")
 print(f"Colunas finais ({len(df_copy.columns)}):")
 for i, col in enumerate(df_copy.columns, 1):
@@ -100,7 +96,8 @@ for i, col in enumerate(df_copy.columns, 1):
     else:
        print(f"{i}. {col}")
 
-       # Verificar valores únicos
+
+# Verificar valores únicos
 print(f"Valores únicos em 'Depression': {df_copy['Depression'].unique()}")
 print(f"Tipo de dados: {df_copy['Depression'].dtype}")
 
@@ -127,8 +124,7 @@ for p in ax.patches:
 plt.tight_layout()
 plt.show()
 
-
-# Identificar categóricas
+ # Identificar categóricas
 categorical_features = df_copy.select_dtypes(include=['object']).columns.tolist()
 numerical_features = df_copy.select_dtypes(include=[np.number]).columns.tolist()
 
@@ -137,18 +133,14 @@ print(f"  {categorical_features}")
 print(f"\nVariáveis Numéricas ({len(numerical_features)}):")
 print(f"  {numerical_features}")
 
-
 # Criar cópia para não afetar original
 df_encoded = df_copy.copy()
-
-
 
 #VARIÁVEIS BINÁRIAS - LabelEncoder
 print("\n" + "="*40)
 print("VARIÁVEIS BINÁRIAS")
 print("="*40)
-binary_cols = ['Gender', 'Have you ever had suicidal thoughts ?', 
-               'Family History of Mental Illness']
+binary_cols = ['Gender','Family History of Mental Illness','Have you ever had suicidal thoughts ?']
 
 for col in binary_cols:
     if col in df_encoded.columns:
@@ -230,7 +222,7 @@ print("="*60)
 encoded_columns = [col for col in df_encoded.columns if '_encoded' in col or '_freq' in col or '_target' in col]
 print(f"\nColunas codificadas criadas ({len(encoded_columns)}):")
 for col in encoded_columns:
-    print(f"   • {col}")
+    print(f"-{col}")
 
 #remover colunas originais categóricas
 cols_to_drop = [col for col in categorical_features if col in df_encoded.columns]
@@ -297,28 +289,185 @@ print(f"{len(num_cols)} features numéricas normalizadas:")
 for col in num_cols:
   print(f"{col}")
 
+  from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.naive_bayes import GaussianNB
+from xgboost import XGBClassifier
+import time
+
+# Dicionário para armazenar resultados
+results = {}
+
+# Lista de modelos para testar
+models = {
+    'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced'),
+    'Decision Tree': DecisionTreeClassifier(random_state=42, class_weight='balanced'),
+    'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced', n_jobs=-1),
+    'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42),
+    'XGBoost': XGBClassifier(n_estimators=100, random_state=42, use_label_encoder=False, eval_metric='logloss'),
+    'Naive Bayes': GaussianNB()
+}
+
+print("\nTreinando e avaliando modelos...")
+
+# Testar cada modelo
+for model_name, model in models.items():
+    print(f"\n{model_name}...")
+    start_time = time.time()
+    
+    try:
+        # Treinar modelo
+        model.fit(X_train_scaled, y_train)
+        
+        # Fazer previsões
+        y_pred = model.predict(X_test_scaled)
+        
+        # Calcular probabilidades (se disponível)
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test_scaled)[:, 1]
+            auc = roc_auc_score(y_test, y_proba)
+        else:
+            auc = 0.5  # Valor neutro se não tiver predict_proba
+        
+        # Calcular métricas
+        accuracy = accuracy_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+        
+        # Tempo de execução
+        exec_time = time.time() - start_time
+        
+        # Armazenar resultados
+        results[model_name] = {
+            'Accuracy': accuracy,
+            'Precision': precision,
+            'Recall': recall,
+            'F1-Score': f1,
+            'AUC-ROC': auc,
+            'Time (s)': exec_time
+        }
+        
+        print(f" Treinado em {exec_time:.2f}s")
+        print(f"  Accuracy: {accuracy:.4f}, F1-Score: {f1:.4f}")
+        
+    except Exception as e:
+        print(f" Erro: {str(e)[:50]}...")
+        results[model_name] = {
+            'Accuracy': 0,
+            'Precision': 0,
+            'Recall': 0,
+            'F1-Score': 0,
+            'AUC-ROC': 0,
+            'Time (s)': 0
+        }
+
+# Criar DataFrame com resultados
+results_df = pd.DataFrame(results).T
+
+# Ordenar por F1-Score (melhor métrica geral)
+results_df_sorted = results_df.sort_values('F1-Score', ascending=False)
 
 print("\n" + "="*60)
-print("TREINAMENTO DO RANDOM FOREST")
+print("RESULTADOS DA COMPARACAO DE MODELOS")
+print("="*60)
+print("\nOrdenado por F1-Score (melhor para dados desbalanceados):")
+print(results_df_sorted[['Accuracy', 'Precision', 'Recall', 'F1-Score', 'AUC-ROC', 'Time (s)']].round(4))
+
+# Visualizar resultados
+fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+
+# Gráfico 1: Comparação de Accuracy
+axes[0, 0].barh(results_df_sorted.index, results_df_sorted['Accuracy'])
+axes[0, 0].set_xlabel('Accuracy')
+axes[0, 0].set_title('Comparação de Accuracy entre Modelos')
+axes[0, 0].set_xlim([0, 1])
+
+# Gráfico 2: Comparação de F1-Score
+axes[0, 1].barh(results_df_sorted.index, results_df_sorted['F1-Score'])
+axes[0, 1].set_xlabel('F1-Score')
+axes[0, 1].set_title('Comparação de F1-Score entre Modelos')
+axes[0, 1].set_xlim([0, 1])
+
+# Gráfico 3: Comparação de AUC-ROC
+axes[1, 0].barh(results_df_sorted.index, results_df_sorted['AUC-ROC'])
+axes[1, 0].set_xlabel('AUC-ROC')
+axes[1, 0].set_title('Comparação de AUC-ROC entre Modelos')
+axes[1, 0].set_xlim([0, 1])
+
+# Gráfico 4: Tempo de execução
+axes[1, 1].barh(results_df_sorted.index, results_df_sorted['Time (s)'])
+axes[1, 1].set_xlabel('Tempo (segundos)')
+axes[1, 1].set_title('Tempo de Treinamento por Modelo')
+
+plt.tight_layout()
+plt.savefig('comparacao_modelos.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Análise dos melhores modelos
+print("\n" + "="*60)
+print("ANALISE DOS MELHORES MODELOS")
 print("="*60)
 
-# Criar modelo com configuração inicial
-rf_model = RandomForestClassifier(
-    n_estimators=100,           # Número de árvores
-    max_depth=10,             # Profundidade máxima
-    min_samples_split=10,        # Mínimo de amostras para dividir
-    min_samples_leaf=5,         # Mínimo de amostras nas folhas
-    max_features='sqrt',
-    random_state=42,            # Reprodutibilidade
-    n_jobs=-1,                  # Usar todos os processadores
-    class_weight='balanced'     # Lidar com desbalanceamento (se houver)
+# Top 3 modelos por F1-Score
+top_3 = results_df_sorted.head(3)
+print(f"\n TOP 3 MODELOS (por F1-Score):")
+for i, (model_name, metrics) in enumerate(top_3.iterrows(), 1):
+    print(f"\n{i}. {model_name}:")
+    print(f"- F1-Score: {metrics['F1-Score']:.4f}")
+    print(f"- Accuracy: {metrics['Accuracy']:.4f}")
+    print(f"- Recall:   {metrics['Recall']:.4f}")
+    print(f"- AUC-ROC:  {metrics['AUC-ROC']:.4f}")
+    print(f"- Tempo:    {metrics['Time (s)']:.2f}s")
+
+# Escolher o melhor modelo
+melhor_modelo_nome = results_df_sorted.index[0]
+melhor_modelo = models[melhor_modelo_nome]
+
+print(f"\n MELHOR MODELO SELECIONADO: {melhor_modelo_nome}")
+print(f"- F1-Score: {results_df_sorted.iloc[0]['F1-Score']:.4f}")
+print(f"- Motivo: Balance entre precision e recall")
+
+
+# Hiperparâmetros para RandomizedSearchCV
+# Hiperparâmetros para otimizar
+param_dist = {
+    'n_estimators': [50, 100, 150, 200],
+    'max_depth': [5, 10, 15, 20, None],
+    'min_samples_split': [2, 5, 10, 15],
+    'min_samples_leaf': [1, 2, 4, 8],
+    'max_features': ['sqrt', 'log2', None],
+    'bootstrap': [True, False]
+}
+
+print("Executando otimizacao com RandomizedSearchCV...")
+
+random_search = RandomizedSearchCV(
+    estimator=RandomForestClassifier(
+        random_state=42,
+        class_weight='balanced',
+        n_jobs=-1
+    ),
+    param_distributions=param_dist,
+    n_iter=15,               # Número de combinações aleatórias
+    cv=3,                    # 3-fold cross-validation
+    scoring='f1',            # Otimizar F1-Score
+    n_jobs=-1,               # Usar todos os cores
+    random_state=42,
+    verbose=0
 )
 
-print(" Treinando Random Forest...")
-rf_model.fit(X_train_scaled, y_train)
+random_search.fit(X_train_scaled, y_train)
 
-print(f" Modelo treinado com {rf_model.n_estimators} árvores")
-print(f" Features importantes consideradas: {rf_model.max_features}")
+print(f"\nMelhores hiperparametros encontrados:")
+for param, value in random_search.best_params_.items():
+    print(f"  {param}: {value}")
+
+print(f"Melhor F1-Score na validacao: {random_search.best_score_:.4f}")
+# Usar o melhor modelo
+rf_model = random_search.best_estimator_
+print(f"\nModelo otimizado treinado com {rf_model.n_estimators} arvores")
 
 
 print("\n" + "="*60)
@@ -415,7 +564,7 @@ top_features = feature_importance.head(15)
 bars = plt.barh(range(len(top_features)), top_features['Importância'])
 plt.yticks(range(len(top_features)), top_features['Variável'])
 plt.xlabel('Importância', fontsize=12)
-plt.title('Top 15 Variáveis para Previsão de Depressão', fontsize=16, fontweight='bold')
+plt.title('Top Variáveis para Previsão de Depressão', fontsize=16, fontweight='bold')
 plt.gca().invert_yaxis()  # Maior importância no topo
 
 # Adicionar valores nas barras
@@ -426,6 +575,7 @@ for i, (bar, importance) in enumerate(zip(bars, top_features['Importância'])):
 plt.tight_layout()
 plt.savefig('importancia_variaveis.png', dpi=300, bbox_inches='tight')
 plt.show()
+
 
 print("\n" + "="*60)
 print("RESUMO FINAL E CONCLUSÕES")
@@ -469,3 +619,225 @@ print(f"""
    - {precisao:.1%} das previsões positivas são corretas
    - Focando nos fatores mais importantes, podemos criar programas preventivos
 """)
+
+# Criar diretório para salvar
+save_dir = "modelo_salvo"
+os.makedirs(save_dir, exist_ok=True)
+
+# 1. SALVAR O MODELO TREINADO
+model_path = f"{save_dir}/random_forest_model.pkl"
+joblib.dump(rf_model, model_path)
+print(f"Modelo salvo: {model_path}")
+
+# 2. SALVAR O SCALER (NORMALIZADOR)
+scaler_path = f"{save_dir}/scaler.pkl"
+joblib.dump(scaler, scaler_path)
+print(f"Scaler salvo: {scaler_path}")
+
+##Faz a previsao com os dados fornecidos
+def fazer_previsao(dados_aluno):
+
+    # Garantir que temos todas as colunas necessarias
+    colunas_necessarias = X.columns.tolist()
+    
+    # Criar DataFrame com os dados
+    dados_df = pd.DataFrame([dados_aluno])
+    
+    # Adicionar colunas faltantes (se houver)
+    for col in colunas_necessarias:
+        if col not in dados_df.columns:
+            print(f"Aviso: Coluna '{col}' nao fornecida. Usando valor medio.")
+            if col in X.columns:
+                dados_df[col] = X[col].mean()
+    
+    # Reordenar colunas
+    dados_df = dados_df[colunas_necessarias]
+    
+    # Normalizar dados
+    dados_normalizados = dados_df.copy()
+    dados_normalizados[num_cols] = scaler.transform(dados_df[num_cols])
+    
+    # Fazer previsao
+    probabilidade = rf_model.predict_proba(dados_normalizados)[0][1]
+    predicao = rf_model.predict(dados_normalizados)[0]
+    
+    return predicao, probabilidade
+
+## Funcao para prever depressao 
+def prever_depressao_aluno(dados_aluno_dict):
+    # Verificar se temos todas as colunas necessarias
+    colunas_obrigatorias = [
+        'Age', 'Gender_encoded', 'CGPA', 'Academic Pressure',
+        'Study Satisfaction', 'Work/Study Hours', 'Sleep Duration_encoded',
+        'Dietary Habits_encoded', 'Have you ever had suicidal thoughts ?_encoded',
+        'Financial Stress_encoded', 'Family History of Mental Illness_encoded'
+    ]
+    
+    # Verificar colunas faltantes
+    faltantes = [col for col in colunas_obrigatorias if col not in dados_aluno_dict]
+    if faltantes:
+        print(f"Aviso: Colunas faltantes: {faltantes}")
+        print("   Usando valores medios para colunas faltantes...")
+        
+        # Adicionar valores medios para colunas faltantes
+        for col in faltantes:
+            if col in X.columns:
+                dados_aluno_dict[col] = X[col].mean()
+            else:
+                # Valor padrao baseado no tipo de variavel
+                if 'encoded' in col:
+                    dados_aluno_dict[col] = 0
+                elif 'Pressure' in col or 'Satisfaction' in col:
+                    dados_aluno_dict[col] = 5.0
+                else:
+                    dados_aluno_dict[col] = 0
+    
+    # Fazer previsao
+    predicao, probabilidade = fazer_previsao(dados_aluno_dict)
+    
+    # Criar resultado estruturado
+    resultado = {
+        'tem_depressao': bool(predicao),
+        'probabilidade_depressao': float(probabilidade),
+        'probabilidade_percentual': float(probabilidade * 100),
+        'risco': 'ALTO' if predicao == 1 else 'BAIXO',
+        'recomendacao': 'Avaliacao psicologica recomendada' if predicao == 1 else 'Manter acompanhamento',
+        'dados_analisados': len(dados_aluno_dict)
+    }
+    
+    return resultado
+
+## Sistema interativo para prever depressao
+def sistema_previsao():
+    print("=" * 60)
+    print("SISTEMA DE PREVISAO DE DEPRESSAO ESTUDANTIL")
+    print("=" * 60)
+    print("\nForneca os dados do aluno abaixo:\n")
+    
+    dados_aluno = {}
+    
+    # Dados que precisam ser fornecidos
+    dados_aluno['Age'] = float(input("Idade do aluno (ex: 21.0): "))
+    dados_aluno['Gender_encoded'] = int(input("Genero (0=Feminino, 1=Masculino): "))
+    dados_aluno['CGPA'] = float(input("Nota media CGPA (0-10, ex: 7.5): "))
+    dados_aluno['Academic Pressure'] = float(input("Pressao Academica (1-10): "))
+    dados_aluno['Study Satisfaction'] = float(input("Satisfacao com Estudos (1-10): "))
+    dados_aluno['Work/Study Hours'] = float(input("Horas de estudo/trabalho por dia (ex: 8.0): "))
+    
+    print("\nQualidade do Sono (1-4):")
+    print("1 = Menos de 5 horas")
+    print("2 = 5-6 horas")
+    print("3 = 7-8 horas")
+    print("4 = Mais de 8 horas")
+    dados_aluno['Sleep Duration_encoded'] = int(input("Escolha (1-4): "))
+    
+    print("\nHabitos Alimentares (1-4):")
+    print("1 = Nao saudavel")
+    print("2 = Outros")
+    print("3 = Moderado")
+    print("4 = Saudavel")
+    dados_aluno['Dietary Habits_encoded'] = int(input("Escolha (1-4): "))
+    
+    dados_aluno['Have you ever had suicidal thoughts ?_encoded'] = int(input("Pensamentos suicidas? (0=Nao, 1=Sim): "))
+    dados_aluno['Financial Stress_encoded'] = float(input("Estresse Financeiro (1-5): "))
+    dados_aluno['Family History of Mental Illness_encoded'] = int(input("Historico familiar doenca mental? (0=Nao, 1=Sim): "))
+    
+    # Fazer previsao
+    resultado = prever_depressao_aluno(dados_aluno)
+    
+    # Mostrar resultado
+    print("\n" + "=" * 60)
+    print("RESULTADO DA PREVISAO")
+    print("=" * 60)
+    
+    print(f"\nPrevisao: {'COM DEPRESSAO' if resultado['tem_depressao'] else 'SEM DEPRESSAO'}")
+    print(f"Probabilidade: {resultado['probabilidade_percentual']:.1f}%")
+    print(f"Nivel de Risco: {resultado['risco']}")
+
+    return resultado
+
+## Exemplos de uso do sistema
+def exemplos():
+    print("\n" + "=" * 60)
+    print("EXEMPLOS DE USO DO SISTEMA")
+    print("=" * 60)
+    
+    # Exemplo 1: Aluno com alto risco
+    print("\nEXEMPLO 1: Aluno com multiplos fatores de risco")
+    exemplo_alto_risco = {
+        'Age': 20.0,
+        'Gender_encoded': 1,
+        'CGPA': 6.2,
+        'Academic Pressure': 9.0,
+        'Study Satisfaction': 3.0,
+        'Work/Study Hours': 10.0,
+        'Sleep Duration_encoded': 1,
+        'Dietary Habits_encoded': 1,
+        'Have you ever had suicidal thoughts ?_encoded': 1,
+        'Financial Stress_encoded': 4.0,
+        'Family History of Mental Illness_encoded': 1
+    }
+    
+    resultado1 = prever_depressao_aluno(exemplo_alto_risco)
+    print(f"\nResultado: {'DEPRESSAO' if resultado1['tem_depressao'] else 'Sem depressao'}")
+    print(f"Probabilidade: {resultado1['probabilidade_percentual']:.1f}%")
+    print(f"Risco: {resultado1['risco']}")
+    
+    # Exemplo 2: Aluno com baixo risco
+    print("\nEXEMPLO 2: Aluno com baixo risco")
+    exemplo_baixo_risco = {
+        'Age': 22.0,
+        'Gender_encoded': 0,
+        'CGPA': 8.5,
+        'Academic Pressure': 4.0,
+        'Study Satisfaction': 8.0,
+        'Work/Study Hours': 6.0,
+        'Sleep Duration_encoded': 3,
+        'Dietary Habits_encoded': 4,
+        'Have you ever had suicidal thoughts ?_encoded': 0,
+        'Financial Stress_encoded': 2.0,
+        'Family History of Mental Illness_encoded': 0
+    }
+    
+    resultado2 = prever_depressao_aluno(exemplo_baixo_risco)
+    print(f"\nResultado: {'DEPRESSAO' if resultado2['tem_depressao'] else 'Sem depressao'}")
+    print(f"Probabilidade: {resultado2['probabilidade_percentual']:.1f}%")
+    print(f"Risco: {resultado2['risco']}")
+
+## Menu principal interativo
+def menu_principal():
+  
+    while True:
+        print("\n" + "=" * 60)
+        print("SISTEMA DE PREVISAO DE DEPRESSAO ESTUDANTIL")
+        print("=" * 60)
+        print("\nEscolha uma opcao:")
+        print("\n1. Fazer previsao para um aluno")
+        print("2. Ver exemplos de uso")
+        print("3. Sair")
+        
+        opcao = input("\nOpcao: ")
+        
+        if opcao == "1":
+            sistema_previsao()
+            
+            # Perguntar se quer fazer outra previsao
+            continuar = input("\nDeseja fazer outra previsao? (s/n): ")
+            if continuar.lower() != 's':
+                break
+        
+        elif opcao == "2":
+            exemplos()
+            input("\nPressione Enter para continuar...")
+        
+        elif opcao == "3":
+            print("\nObrigado por usar o sistema!")
+            break
+        
+        else:
+            print("Opcao invalida. Tente novamente.")
+
+#------------------------------------------
+
+# Iniciar menu
+menu_principal()
