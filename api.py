@@ -1,5 +1,3 @@
-# api_simples.py - Versão simplificada
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pandas as pd

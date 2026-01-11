@@ -1,5 +1,3 @@
-# app.py - Interface simplificada
-
 import streamlit as st
 import requests
 
