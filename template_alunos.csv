@@ -1,4 +1,0 @@
-Age,Gender_encoded,CGPA,Academic Pressure,Study Satisfaction,Work/Study Hours,Work Pressure,Job Satisfaction,Sleep Duration_encoded,Dietary Habits_encoded,Have you ever had suicidal thoughts ?_encoded,Financial Stress_encoded,Family History of Mental Illness_encoded
-20.0,0.0,7.0,5.0,6.0,8.0,4.0,5.0,3.0,3.0,0.0,3.0,0.0
-21.0,1.0,7.5,5.0,6.0,8.0,4.0,5.0,3.0,3.0,0.0,3.0,0.0
-22.0,0.0,8.0,5.0,6.0,8.0,4.0,5.0,3.0,3.0,0.0,3.0,0.0
