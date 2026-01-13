@@ -65,7 +65,7 @@ def predict_depression(student: StudentInput):
         return {
             "depressao": bool(predicao),
             "probabilidade": float(probabilidade),
-            "percentual": float(probabilidade * 100)
+            "percentual": float(probabilidade * 100),
         }
         
     except Exception as e:
